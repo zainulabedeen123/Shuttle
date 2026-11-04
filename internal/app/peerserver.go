@@ -194,7 +194,7 @@ func (a *App) attention(title, msg string) {
 	if a.uiClients.Load() == 0 {
 		go platform.Notify(title, msg)
 		if title == "Pairing request" {
-			go platform.OpenURL(a.uiURL)
+			go a.launchWindow()
 		}
 	}
 }

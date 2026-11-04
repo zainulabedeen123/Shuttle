@@ -47,3 +47,5 @@ func InstallSendTo(string) error      { return ErrUnsupported }
 func Notify(title, msg string)        { _ = exec.Command("notify-send", title, msg).Run() }
 func AttachConsole()                  {}
 func Detach(cmd *exec.Cmd)            { cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true} }
+
+func FirewallWarning(string) string { return "" }

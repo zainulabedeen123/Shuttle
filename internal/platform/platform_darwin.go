@@ -152,3 +152,26 @@ func Notify(title, msg string) {
 func AttachConsole() {}
 
 func Detach(cmd *exec.Cmd) { cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true} }
+
+// FirewallWarning reports when the macOS Application Firewall blocks Shuttle.
+func FirewallWarning(exe string) string {
+	const fw = "/usr/libexec/ApplicationFirewall/socketfilterfw"
+	out, err := exec.Command(fw, "--getglobalstate").Output()
+	if err != nil || !strings.Contains(strings.ToLower(string(out)), "enabled") {
+		return ""
+	}
+	const fix = " Open System Settings → Network → Firewall → Options…, turn off “Block all incoming connections” and set Shuttle to “Allow incoming connections”."
+	if o, _ := exec.Command(fw, "--getblockall").Output(); strings.Contains(strings.ToLower(string(o)), "enabled") {
+		return "macOS Firewall is blocking all incoming connections, so your other computer can't connect to this Mac." + fix
+	}
+	target := exe
+	if i := strings.Index(exe, ".app/Contents/MacOS/"); i > 0 {
+		target = exe[:i+4]
+	}
+	o, _ := exec.Command(fw, "--getappblocked", target).Output()
+	s := strings.ToLower(string(o))
+	if strings.Contains(s, "block") && !strings.Contains(s, "permitted") {
+		return "macOS Firewall is blocking Shuttle, so your other computer can't connect to this Mac." + fix
+	}
+	return ""
+}

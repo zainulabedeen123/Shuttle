@@ -79,13 +79,25 @@ Sender                                         Receiver
 
 ## 5. Discovery
 
-UDP broadcast on port 47822 (to `255.255.255.255` and every interface's directed broadcast) with
-`{app, v, id, name, os, port, fp}`. Receivers reply unicast so new devices appear instantly.
-Fallback: **Connect by IP** in the UI for networks that block broadcast (guest Wi-Fi, VLANs). Paired peers remember their last IP.
+Two mechanisms run side by side, so devices appear automatically even when one is blocked:
+
+1. **UDP broadcast** on port 47822 (to `255.255.255.255` and every interface's directed broadcast) with
+   `{app, v, id, name, os, port, fp}`. Receivers reply unicast, so new devices appear instantly when the network allows it.
+2. **TCP scan** (`scan.go`): every 30 s while a window is open (every 2 min otherwise), the service tries Shuttle's port on every address of each local /24 subnet (~2 s) and asks any responder who it is (`GET /v1/hello`). This finds devices on routers that drop broadcasts.
+
+Fallback: **Connect by IP**. Paired peers remember their last IP and are probed directly.
+
+Platform requirements that affect discovery:
+- The macOS bundle declares `NSLocalNetworkUsageDescription`; without it, macOS 15+ silently denies local-network access.
+- A firewall check (macOS `socketfilterfw`, Windows Defender Firewall rules) shows a warning banner in the app when Shuttle is blocked.
 
 ## 6. User experience
 
-- Double-click `Shuttle` → opens browser UI. Running it again just reopens the UI (single instance).
+Shuttle is one executable in two roles:
+- **Background service** (`shuttle run`): discovery, transfers, local UI server. Started at login or by the app.
+- **App window** (`shuttle` with no arguments): a native window (WebView2 on Windows, WebKit on macOS) showing the service's UI. Closing it leaves the service receiving; an incoming pairing request opens it automatically.
+
+- Launching the app while it's already running just opens another window onto the same service.
 - Devices panel: online devices, **Pair**, pairing code confirmation, **Connect by IP**.
 - Send panel: pick a device, **Choose files** / **Choose folder** (native OS dialogs), live progress, speed, ETA, cancel.
 - Received panel: history, **Show in folder**.
@@ -100,14 +112,14 @@ Fallback: **Connect by IP** in the UI for networks that block broadcast (guest W
 | 47821 | TCP | local UI, 127.0.0.1 only |
 | 47822 | UDP | discovery |
 
-Windows asks once to allow network access (choose **Private networks**). macOS asks to allow incoming connections.
+Windows asks once to allow network access (allow both **Private** and **Public**: home Wi-Fi is often marked Public). macOS asks for Local Network access and, if its firewall is on, to accept incoming connections.
 
 ## 8. Build
 
 ```
 build.ps1 / build.sh  →  dist/shuttle-windows-amd64.exe
-                          dist/shuttle-macos-arm64   (Apple Silicon)
-                          dist/shuttle-macos-amd64   (Intel)
+go run ./tools/build mac      →  dist/Shuttle-macOS.zip   (macOS only; native window needs cgo)
+GitHub Actions builds both on every v* tag and publishes a Release.
 ```
 
 ## 9. Implementation phases

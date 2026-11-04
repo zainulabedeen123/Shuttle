@@ -16,17 +16,20 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
 	"shuttle/internal/platform"
+	"shuttle/internal/window"
 )
 
 type Options struct {
-	NoBrowser     bool
+	OpenWindow    bool // open the app window once started (dev convenience)
 	PeerPort      int
 	UIPort        int
 	DiscoveryPort int
@@ -59,6 +62,9 @@ type App struct {
 	awakeMu   sync.Mutex
 	awakeN    int
 	uiClients atomic.Int32
+	scanning  atomic.Bool
+	rescan    chan struct{}
+	fwWarning string
 
 	quit     chan struct{}
 	quitOnce sync.Once
@@ -122,9 +128,6 @@ func Run(opts Options) error {
 	if err != nil {
 		if info, e := pingRunning(home); e == nil {
 			log.Printf("Shuttle is already running: %s", info.URL)
-			if !opts.NoBrowser {
-				_ = platform.OpenURL(info.URL)
-			}
 			return nil
 		}
 		return fmt.Errorf("cannot listen on 127.0.0.1:%d: %w", cfg.UIPort, err)
@@ -140,7 +143,7 @@ func Run(opts Options) error {
 		home: home, version: opts.Version, cfg: cfg, cert: cert, fp: fp, token: randomHex(16), exe: exe,
 		online: map[string]*onlineDevice{}, seen: map[string]time.Time{},
 		pairIn: map[string]*pairRequest{}, pairOut: map[string]*pairAttempt{},
-		incoming: map[string]*inTransfer{}, quit: make(chan struct{}),
+		incoming: map[string]*inTransfer{}, quit: make(chan struct{}), rescan: make(chan struct{}, 1),
 	}
 	a.autostart = platform.AutostartEnabled()
 	a.loadHistory()
@@ -162,6 +165,8 @@ func Run(opts Options) error {
 	}
 	go a.speedLoop()
 	go a.probeLoop()
+	go a.scanLoop()
+	go a.firewallLoop()
 	go a.cleanupParts()
 	go func() {
 		if err := platform.InstallSendTo(exe); err != nil && !errors.Is(err, platform.ErrUnsupported) {
@@ -173,8 +178,8 @@ func Run(opts Options) error {
 	go func() { _ = srv.Serve(uiLn) }()
 
 	log.Printf("Shuttle %s — device %q, UI %s, peer port %d, IPs %v", a.version, cfg.DeviceName, a.uiURL, cfg.PeerPort, localIPs())
-	if !opts.NoBrowser {
-		_ = platform.OpenURL(a.uiURL)
+	if opts.OpenWindow {
+		go a.launchWindow()
 	}
 
 	sig := make(chan os.Signal, 1)
@@ -361,13 +366,36 @@ func EnsureRunning() (uiInfo, error) {
 	return uiInfo{}, errors.New("Shuttle did not start; check shuttle.log in " + home)
 }
 
-// OpenUI makes sure Shuttle is running and opens its window.
-func OpenUI() error {
+// OpenWindow makes sure the background service is running, then shows the UI
+// in a native app window (blocking until it is closed). Falls back to the
+// default browser if no native window is available.
+func OpenWindow() error {
 	info, err := EnsureRunning()
 	if err != nil {
 		return err
 	}
-	return platform.OpenURL(info.URL)
+	home, _ := HomeDir()
+	if err := window.Open(info.URL, filepath.Join(home, "webview")); err != nil {
+		log.Printf("native window unavailable (%v); using browser", err)
+		return platform.OpenURL(info.URL)
+	}
+	return nil
+}
+
+// launchWindow opens the app window from the background service, e.g. when a
+// pairing request arrives and no window is open.
+func (a *App) launchWindow() {
+	if runtime.GOOS == "darwin" {
+		if i := strings.Index(a.exe, ".app/Contents/MacOS/"); i > 0 {
+			_ = exec.Command("open", a.exe[:i+4]).Start()
+			return
+		}
+	}
+	cmd := exec.Command(a.exe, "app")
+	platform.Detach(cmd)
+	if err := cmd.Start(); err == nil {
+		_ = cmd.Process.Release()
+	}
 }
 
 // SendFromCLI queues files on the running instance (starting it if needed).

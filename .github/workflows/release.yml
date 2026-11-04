@@ -1,0 +1,69 @@
+name: Build & release
+
+# Builds Shuttle for Windows and macOS (the macOS app needs a Mac to compile
+# its native WebKit window). Every push builds and uploads artifacts; pushing a
+# tag like v1.2.0 also publishes a GitHub Release with both downloads.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test ./...
+      - run: go run ./tools/build windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Shuttle-Windows
+          path: dist/Shuttle-Windows.exe
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go run ./tools/build mac
+      - name: Check the app bundle
+        run: |
+          lipo -info dist/Shuttle.app/Contents/MacOS/shuttle
+          codesign --verify --deep --strict dist/Shuttle.app
+          plutil -lint dist/Shuttle.app/Contents/Info.plist
+          dist/Shuttle.app/Contents/MacOS/shuttle version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Shuttle-macOS
+          path: dist/Shuttle-macOS.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Shuttle-Windows.exe
+            dist/Shuttle-macOS.zip
+          body: |
+            **Windows:** download `Shuttle-Windows.exe` and run it.
+            **Mac:** download `Shuttle-macOS.zip`, unzip, drag **Shuttle.app** to Applications, then run once in Terminal:
+            `xattr -dr com.apple.quarantine /Applications/Shuttle.app`
+            When macOS asks to let Shuttle find devices on your local network, click **Allow**.

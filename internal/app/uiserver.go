@@ -53,6 +53,10 @@ func (a *App) uiHandler() http.Handler {
 	mux.HandleFunc("POST /api/clear", a.hUIClear)
 	mux.HandleFunc("POST /api/settings", a.hUISettings)
 	mux.HandleFunc("POST /api/reveal", a.hUIReveal)
+	mux.HandleFunc("POST /api/rescan", func(w http.ResponseWriter, r *http.Request) {
+		a.requestScan()
+		writeJSON(w, 200, map[string]bool{"ok": true})
+	})
 	mux.HandleFunc("POST /api/quit", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]bool{"ok": true})
 		go func() { time.Sleep(300 * time.Millisecond); a.stop() }()
@@ -101,6 +105,9 @@ type meView struct {
 	PeerPort    int      `json:"peerPort"`
 	Version     string   `json:"version"`
 	Autostart   bool     `json:"autostart"`
+	Scanning    bool     `json:"scanning"`
+	Firewall    string   `json:"firewall,omitempty"`
+	App         bool     `json:"app"`
 }
 
 type deviceView struct {
@@ -153,7 +160,8 @@ func (a *App) snapshot() stateView {
 	defer a.mu.Unlock()
 	s := stateView{
 		Me: meView{ID: a.cfg.DeviceID, Name: a.cfg.DeviceName, OS: runtime.GOOS, DownloadDir: a.cfg.DownloadDir,
-			IPs: ips, PeerPort: a.cfg.PeerPort, Version: a.version, Autostart: a.autostart},
+			IPs: ips, PeerPort: a.cfg.PeerPort, Version: a.version, Autostart: a.autostart,
+			Scanning: a.scanning.Load(), Firewall: a.fwWarning},
 		Devices: []deviceView{}, PairRequests: []pairReqView{}, PairAttempts: []pairAttempt{},
 		Transfers: []transferView{}, History: a.history,
 	}
@@ -166,7 +174,7 @@ func (a *App) snapshot() stateView {
 		s.Devices = append(s.Devices, deviceView{ID: p.ID, Name: p.Name, OS: p.OS, Addr: p.Addr, Paired: true, Online: a.isOnlineLocked(p.ID)})
 	}
 	for _, d := range a.online {
-		if !paired[d.ID] && time.Since(d.LastSeen) < 10*time.Second {
+		if !paired[d.ID] && time.Since(d.LastSeen) < 75*time.Second {
 			s.Devices = append(s.Devices, deviceView{ID: d.ID, Name: d.Name, OS: d.OS, Addr: d.Addr, Online: true})
 		}
 	}
@@ -307,7 +315,11 @@ func (a *App) setAttempt(key string, f func(*pairAttempt)) {
 
 func (a *App) pairWith(addr string) {
 	fail := func(err error) {
-		a.setAttempt(addr, func(p *pairAttempt) { p.Status, p.Error = "failed", err.Error() })
+		msg := err.Error()
+		if strings.Contains(msg, "timed out") || strings.Contains(msg, "not reachable") || strings.Contains(msg, "no route") || strings.Contains(msg, "unreachable") {
+			msg = "no answer. Check that Shuttle is open on that computer, that the IP matches the one shown at the top of its Shuttle window, and that its firewall allows Shuttle"
+		}
+		a.setAttempt(addr, func(p *pairAttempt) { p.Status, p.Error = "failed", msg })
 		log.Printf("pairing with %s failed: %v", addr, err)
 	}
 	ctx := context.Background()

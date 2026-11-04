@@ -94,6 +94,9 @@ td.m{color:var(--muted);white-space:nowrap}
 #toast.show{opacity:1;transform:translateX(-50%)}
 #toast.bad{background:var(--bad)}
 .check{display:flex;gap:8px;align-items:center;cursor:pointer}
+.spin{display:inline-block;width:10px;height:10px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-1px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.banner.warn{background:rgba(217,138,0,.14)}
 </style>
 </head>
 <body>
@@ -112,7 +115,8 @@ td.m{color:var(--muted);white-space:nowrap}
 <main>
   <section>
     <div class="card">
-      <h2>Devices</h2>
+      <h2>Devices <span class="right"><button class="link" id="rescanBtn" onclick="rescan()">Rescan</button></span></h2>
+      <div id="fwWarn"></div>
       <div id="pairAttempts"></div>
       <div id="devices"></div>
       <div class="hint" style="margin-top:14px">Not showing up? Connect by IP (shown in the other computer's Shuttle header):</div>
@@ -154,6 +158,12 @@ td.m{color:var(--muted);white-space:nowrap}
   <div class="row"><button onclick="closeSettings()">Cancel</button><button class="primary" onclick="saveSettings()">Save</button></div>
 </div></div>
 
+<div class="modal-bg" id="confirmModal"><div class="modal">
+  <h3 id="confirmTitle"></h3>
+  <p id="confirmText"></p>
+  <div class="row"><button id="confirmNo">Cancel</button><button class="primary" id="confirmYes">OK</button></div>
+</div></div>
+
 <div id="toast"></div>
 
 <script>
@@ -181,11 +191,26 @@ let toastT;
 function toast(msg, bad){ const t=$('toast'); t.textContent=msg; t.className='show'+(bad?' bad':''); clearTimeout(toastT); toastT=setTimeout(()=>t.className='', bad?5000:2800); }
 function setHTML(el, html){ if(el._h !== html){ el.innerHTML = html; el._h = html; } }
 
+// In-page confirm (native confirm() is unavailable in the macOS app window).
+function confirmBox(title, text, okLabel){
+  return new Promise(res => {
+    $('confirmTitle').textContent = title; $('confirmText').textContent = text;
+    $('confirmYes').textContent = okLabel || 'OK';
+    const m = $('confirmModal'); m.classList.add('show');
+    const done = v => { m.classList.remove('show'); res(v); };
+    $('confirmYes').onclick = () => done(true); $('confirmNo').onclick = () => done(false);
+  });
+}
+
 // ---------- live state ----------
 function connect(){
   const es = new EventSource('/api/events?token='+TOKEN);
   es.onmessage = e => { S = JSON.parse(e.data); setConn(true); render(); };
-  es.onerror = () => setConn(false);
+  es.onerror = async () => {
+    setConn(false);
+    // If the service restarted, our session token is stale: reload to get a new one.
+    try { const r = await fetch('/api/ping', {headers:{'X-Shuttle-Token':TOKEN}}); if(r.status===401) location.reload(); } catch(e){}
+  };
 }
 function setConn(ok){
   $('conndot').className = 'dot'+(ok?' on':'');
@@ -195,6 +220,8 @@ function setConn(ok){
 function render(){
   const me = S.me;
   setHTML($('me'), `${esc(me.name)} · ${osName(me.os)} · IP ${esc((me.ips||[]).join(', ') || 'none')}`);
+  setHTML($('fwWarn'), me.firewall ? `<div class="banner warn">⚠️ ${esc(me.firewall)}</div>` : '');
+  $('rescanBtn').innerHTML = me.scanning ? '<span class="spin"></span>Scanning…' : 'Rescan';
   renderDevices(); renderSend(); renderTransfers(); renderHistory(); renderPairModal();
 }
 
@@ -214,11 +241,12 @@ function renderDevices(){
     target = (paired.find(d=>d.online) || paired[0]).id;
   }
   if(!S.devices.length){
-    setHTML($('devices'), `<div class="empty">Looking for other computers on your network…<br><br>Open Shuttle on your other computer — make sure both are on the same Wi-Fi/network.</div>`);
+    setHTML($('devices'), `<div class="empty">${S.me.scanning?'<span class="spin"></span>':''}Looking for other computers on your network…<br><br>Open Shuttle on your other computer and make sure both are on the same Wi-Fi.${S.me.os==='darwin'?'<br><br>On this Mac: if macOS asked to let Shuttle find devices on your local network, click Allow (System Settings → Privacy &amp; Security → Local Network → Shuttle).':''}</div>`);
     return;
   }
   setHTML($('devices'), S.devices.map(d => {
-    const status = `<span class="dot ${d.online?'on':''}"></span>${d.online?'online':'offline'} · ${osName(d.os)}`;
+    const ip = (d.addr||'').replace(/:d+$/,'');
+    const status = `<span class="dot ${d.online?'on':''}"></span>${d.online?'online':'offline'} · ${osName(d.os)}${ip?' · '+esc(ip):''}`;
     if(d.paired){
       return `<div class="device pickable ${d.id===target?'sel':''}" onclick="selectTarget('${esc(d.id)}')">
         <div class="ic">${osIcon(d.os)}</div>
@@ -338,7 +366,8 @@ function selectTarget(id){ target=id; localStorage.setItem('shuttle.target', id)
 function pairDevice(id){ api('pair',{deviceId:id}).catch(()=>{}); }
 function connectIP(){ const v=$('ipInput').value.trim(); if(!v) return; api('pair',{addr:v}).then(()=>{$('ipInput').value='';}).catch(()=>{}); }
 function respond(reqId, accept){ api('pair/respond',{reqId,accept}).catch(()=>{}); }
-function unpair(id, name){ if(confirm(`Unpair “${name}”? It will no longer be able to send you files.`)) api('unpair',{peerId:id}).catch(()=>{}); }
+async function unpair(id, name){ if(await confirmBox(`Unpair “${name}”?`, 'It will no longer be able to send files to this computer. You can pair again anytime.', 'Unpair')) api('unpair',{peerId:id}).catch(()=>{}); }
+function rescan(){ api('rescan',{}).catch(()=>{}); }
 
 async function pick(kind){
   try{
@@ -368,8 +397,9 @@ async function saveSettings(){
   try{ await api('settings', body); closeSettings(); toast('Saved'); }catch(e){}
 }
 async function quitApp(){
-  if(!confirm('Stop Shuttle on this computer? Transfers in progress will pause and can be resumed later.')) return;
+  if(!await confirmBox('Quit Shuttle?', 'This stops Shuttle on this computer, so it can no longer receive files until you open it again. Transfers in progress pause and resume later. (To just hide this window, close it instead.)', 'Quit Shuttle')) return;
   await api('quit',{}).catch(()=>{});
+  if(window.shuttleCloseWindow){ window.shuttleCloseWindow(); return; }
   document.body.innerHTML = '<div class="empty" style="padding:80px">Shuttle has stopped. Open the Shuttle app again to restart it.</div>';
 }
 

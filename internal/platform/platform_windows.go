@@ -190,3 +190,19 @@ func HideFile(path string) {
 	}
 	_ = syscall.SetFileAttributes(p, attrs|syscall.FILE_ATTRIBUTE_HIDDEN)
 }
+
+// FirewallWarning reports when Windows Defender Firewall has an inbound Block
+// rule for Shuttle on the current network profile (e.g. "Cancel" was clicked on
+// the first-run prompt, or only Private was allowed while on a Public network).
+func FirewallWarning(exe string) string {
+	out, err := powershell(`$p = ` + psQuote(exe) + `
+$cat = [string](Get-NetConnectionProfile | Select-Object -First 1).NetworkCategory
+$rules = Get-NetFirewallApplicationFilter | Where-Object { $_.Program -eq $p } | Get-NetFirewallRule | Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' }
+$blocked = $rules | Where-Object { $_.Action -eq 'Block' -and ([string]$_.Profile -eq 'Any' -or ([string]$_.Profile).Contains($cat)) }
+if ($blocked) { "BLOCK:" + $cat }`)
+	if err != nil || !strings.HasPrefix(out, "BLOCK:") {
+		return ""
+	}
+	return "Windows Firewall is blocking Shuttle on this " + strings.TrimPrefix(out, "BLOCK:") +
+		" network, so your other computer can't connect to this PC. Fix: Windows Security → Firewall & network protection → Allow an app through firewall → tick both Private and Public for Shuttle."
+}
