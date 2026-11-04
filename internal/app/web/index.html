@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shuttle</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235b5bf7'/%3E%3Cpath d='M9 13h11l-3-3M23 19H12l3 3' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#f5f6fa;--card:#fff;--text:#1d1f27;--muted:#6b7080;--line:#e5e7ef;
+  --accent:#5b5bf7;--accent-2:#7c5cff;--accent-soft:#ececff;--ok:#16a36a;--warn:#d98a00;--bad:#e5484d;
+  --radius:14px;--shadow:0 1px 2px rgba(20,20,40,.05),0 4px 16px rgba(20,20,40,.06);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#111218;--card:#1a1c24;--text:#eceef5;--muted:#9096a8;--line:#2a2d38;--accent-soft:#25264a;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25);
+}}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text)}
+header{display:flex;align-items:center;gap:10px 14px;padding:14px 24px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center}
+h1{font-size:17px;margin:0}
+.sub{color:var(--muted);font-size:12.5px}
+.spacer{flex:1}
+.conn{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block;flex:none}
+.dot.on{background:var(--ok);box-shadow:0 0 0 3px rgba(22,163,106,.15)}
+main{display:grid;grid-template-columns:330px 1fr;gap:20px;padding:20px 24px;max-width:1200px;margin:0 auto}
+section{min-width:0}
+@media (max-width:860px){main{grid-template-columns:1fr;padding:14px}header{flex-wrap:wrap;padding:12px 14px}.drop .row{flex-wrap:wrap}td.hide-sm{display:none}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px}
+.card+.card{margin-top:20px}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 12px;display:flex;align-items:center;gap:8px}
+.card h2 .right{margin-left:auto;text-transform:none;letter-spacing:0}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--text);padding:7px 12px;border-radius:9px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.primary:hover{filter:brightness(1.08)}
+button.danger{color:var(--bad)}
+button.link{border:none;background:none;color:var(--accent);padding:2px 4px}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.big{padding:14px 18px;font-size:15px;border-radius:12px;flex:1}
+input[type=text]{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--text);width:100%}
+input[type=text]:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+.device{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--line);border-radius:11px;margin-bottom:8px;cursor:default}
+.device.sel{border-color:var(--accent);background:var(--accent-soft)}
+.device.pickable{cursor:pointer}
+.device .ic{font-size:22px;width:30px;text-align:center}
+.device .nm{font-weight:600}
+.device .meta{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.device .act{margin-left:auto;display:flex;gap:4px}
+.empty{color:var(--muted);text-align:center;padding:14px 6px;font-size:13px}
+.row{display:flex;gap:8px;align-items:center}
+.hint{font-size:12px;color:var(--muted);margin-top:8px}
+.banner{border-radius:11px;padding:12px;margin-bottom:10px;background:var(--accent-soft);font-size:13px}
+.banner.bad{background:rgba(229,72,77,.12)}
+.code{font:700 24px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.12em;margin:6px 0}
+.drop{border:2px dashed var(--line);border-radius:14px;padding:22px;text-align:center;transition:.15s}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.target{font-size:15px;margin-bottom:14px}
+.target b{color:var(--accent)}
+.xfer{padding:12px 0;border-top:1px solid var(--line)}
+.xfer:first-child{border-top:none;padding-top:2px}
+.xfer .top{display:flex;align-items:center;gap:8px;min-width:0}
+.xfer .top .dir{flex:none}
+.xfer .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xfer .dir{font-size:12px;color:var(--muted);white-space:nowrap}
+.xfer .btns{margin-left:auto;display:flex;gap:4px;flex:none}
+.bar{height:8px;border-radius:5px;background:var(--line);overflow:hidden;margin:8px 0 6px}
+.bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .45s linear}
+.xfer.done .bar>i{background:var(--ok)}
+.xfer.failed .bar>i{background:var(--bad)}
+.xfer .stats{font-size:12px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
+.xfer .err{color:var(--bad);font-size:12px;margin-top:4px}
+.pill{font-size:11px;padding:1px 8px;border-radius:20px;background:var(--line);color:var(--muted);white-space:nowrap}
+.pill.ok{background:rgba(22,163,106,.14);color:var(--ok)}
+.pill.bad{background:rgba(229,72,77,.14);color:var(--bad)}
+.pill.run{background:var(--accent-soft);color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td{padding:8px 6px;border-top:1px solid var(--line);vertical-align:middle}
+tr:first-child td{border-top:none}
+td.n{max-width:0;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+td.m{color:var(--muted);white-space:nowrap}
+.modal-bg{position:fixed;inset:0;background:rgba(10,10,20,.45);display:none;align-items:center;justify-content:center;z-index:20;padding:20px}
+.modal-bg.show{display:flex}
+.modal{background:var(--card);border-radius:16px;padding:24px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal h3{margin:0 0 8px;font-size:18px}
+.modal p{color:var(--muted);margin:6px 0 14px}
+.modal .row{justify-content:flex-end;margin-top:18px}
+.field{margin:12px 0}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+.path{font:12px ui-monospace,Menlo,Consolas,monospace;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-radius:9px;word-break:break-all;flex:1}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:#22242e;color:#fff;padding:10px 16px;border-radius:10px;opacity:0;transition:.25s;pointer-events:none;z-index:30;max-width:90vw}
+#toast.show{opacity:1;transform:translateX(-50%)}
+#toast.bad{background:var(--bad)}
+.check{display:flex;gap:8px;align-items:center;cursor:pointer}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><svg width="20" height="20" viewBox="0 0 32 32"><path d="M7 12h15l-4-4M25 20H10l4 4" stroke="white" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  <div>
+    <h1>Shuttle</h1>
+    <div class="sub" id="me">…</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="conn"><span class="dot" id="conndot"></span><span id="conntext">connecting…</span></div>
+  <button onclick="openSettings()">Settings</button>
+  <button onclick="quitApp()" title="Stop Shuttle on this computer">Quit</button>
+</header>
+
+<main>
+  <section>
+    <div class="card">
+      <h2>Devices</h2>
+      <div id="pairAttempts"></div>
+      <div id="devices"></div>
+      <div class="hint" style="margin-top:14px">Not showing up? Connect by IP (shown in the other computer's Shuttle header):</div>
+      <div class="row" style="margin-top:6px">
+        <input type="text" id="ipInput" placeholder="e.g. 192.168.1.20" onkeydown="if(event.key==='Enter')connectIP()">
+        <button onclick="connectIP()">Pair</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>Send</h2>
+      <div id="sendArea"></div>
+    </div>
+
+    <div class="card">
+      <h2>Transfers <span class="right"><button class="link" onclick="api('clear',{})">Clear finished</button></span></h2>
+      <div id="transfers"></div>
+    </div>
+
+    <div class="card">
+      <h2>History <span class="right"><button class="link" onclick="api('reveal',{downloads:true})">Open received folder</button></span></h2>
+      <div id="history"></div>
+    </div>
+  </section>
+</main>
+
+<div class="modal-bg" id="pairModal"><div class="modal" id="pairModalBody"></div></div>
+
+<div class="modal-bg" id="settingsModal"><div class="modal">
+  <h3>Settings</h3>
+  <div class="field"><label>This device's name</label><input type="text" id="setName"></div>
+  <div class="field"><label>Save received files to</label>
+    <div class="row"><div class="path" id="setDir"></div><button onclick="changeDir()">Change…</button></div>
+  </div>
+  <div class="field"><label class="check"><input type="checkbox" id="setAuto"> Start Shuttle automatically when I log in</label></div>
+  <div class="hint" id="setInfo"></div>
+  <div class="row"><button onclick="closeSettings()">Cancel</button><button class="primary" onclick="saveSettings()">Save</button></div>
+</div></div>
+
+<div id="toast"></div>
+
+<script>
+const TOKEN = "__SHUTTLE_TOKEN__";
+let S = null;
+let target = localStorage.getItem('shuttle.target') || '';
+let pickedDir = null;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const osIcon = os => os === 'darwin' ? '💻' : os === 'windows' ? '🖥️' : '🐧';
+const osName = os => os === 'darwin' ? 'Mac' : os === 'windows' ? 'Windows' : (os || 'Unknown');
+
+function fmtBytes(n){ if(!n) return '0 B'; const u=['B','KB','MB','GB','TB']; let i=0; while(n>=1024&&i<u.length-1){n/=1024;i++} return (i?n.toFixed(n<10?2:1):n)+' '+u[i]; }
+function fmtDur(s){ if(!isFinite(s)||s<0) return '—'; s=Math.round(s); if(s<60) return s+'s'; if(s<3600) return Math.floor(s/60)+'m '+(s%60)+'s'; return Math.floor(s/3600)+'h '+Math.floor(s%3600/60)+'m'; }
+function fmtTime(t){ const d=new Date(t); const today=new Date().toDateString()===d.toDateString(); return today? d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : d.toLocaleDateString([], {month:'short',day:'numeric'})+' '+d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
+
+async function api(path, body){
+  const r = await fetch('/api/'+path, {method:'POST', headers:{'Content-Type':'application/json','X-Shuttle-Token':TOKEN}, body:JSON.stringify(body||{})});
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok){ toast(j.error || r.statusText, true); throw new Error(j.error || r.statusText); }
+  return j;
+}
+let toastT;
+function toast(msg, bad){ const t=$('toast'); t.textContent=msg; t.className='show'+(bad?' bad':''); clearTimeout(toastT); toastT=setTimeout(()=>t.className='', bad?5000:2800); }
+function setHTML(el, html){ if(el._h !== html){ el.innerHTML = html; el._h = html; } }
+
+// ---------- live state ----------
+function connect(){
+  const es = new EventSource('/api/events?token='+TOKEN);
+  es.onmessage = e => { S = JSON.parse(e.data); setConn(true); render(); };
+  es.onerror = () => setConn(false);
+}
+function setConn(ok){
+  $('conndot').className = 'dot'+(ok?' on':'');
+  $('conntext').textContent = ok ? 'running' : 'not running — start Shuttle';
+}
+
+function render(){
+  const me = S.me;
+  setHTML($('me'), `${esc(me.name)} · ${osName(me.os)} · IP ${esc((me.ips||[]).join(', ') || 'none')}`);
+  renderDevices(); renderSend(); renderTransfers(); renderHistory(); renderPairModal();
+}
+
+function pairedDevices(){ return S.devices.filter(d => d.paired); }
+
+function renderDevices(){
+  const att = S.pairAttempts.map(p => {
+    if(p.status==='waiting') return `<div class="banner">Confirm on <b>${esc(p.name)}</b> that it shows this code:<div class="code">${esc(p.code)}</div><span class="sub">Waiting for approval…</span></div>`;
+    if(p.status==='connecting') return `<div class="banner">Connecting to ${esc(p.name)}…</div>`;
+    if(p.status==='paired') return `<div class="banner">✅ Paired with <b>${esc(p.name)}</b></div>`;
+    return `<div class="banner bad">Couldn't pair with ${esc(p.name)}: ${esc(p.error)} <button class="link" onclick="api('pair/dismiss',{key:'${esc(p.key)}'})">Dismiss</button></div>`;
+  }).join('');
+  setHTML($('pairAttempts'), att);
+
+  const paired = pairedDevices();
+  if(paired.length && !paired.find(d=>d.id===target)){
+    target = (paired.find(d=>d.online) || paired[0]).id;
+  }
+  if(!S.devices.length){
+    setHTML($('devices'), `<div class="empty">Looking for other computers on your network…<br><br>Open Shuttle on your other computer — make sure both are on the same Wi-Fi/network.</div>`);
+    return;
+  }
+  setHTML($('devices'), S.devices.map(d => {
+    const status = `<span class="dot ${d.online?'on':''}"></span>${d.online?'online':'offline'} · ${osName(d.os)}`;
+    if(d.paired){
+      return `<div class="device pickable ${d.id===target?'sel':''}" onclick="selectTarget('${esc(d.id)}')">
+        <div class="ic">${osIcon(d.os)}</div>
+        <div><div class="nm">${esc(d.name)}</div><div class="meta">${status}</div></div>
+        <div class="act"><button class="link danger" title="Unpair" onclick="event.stopPropagation();unpair('${esc(d.id)}','${esc(d.name)}')">✕</button></div>
+      </div>`;
+    }
+    return `<div class="device">
+      <div class="ic">${osIcon(d.os)}</div>
+      <div><div class="nm">${esc(d.name)}</div><div class="meta">${status} · not paired</div></div>
+      <div class="act"><button class="primary" onclick="pairDevice('${esc(d.id)}')">Pair</button></div>
+    </div>`;
+  }).join(''));
+}
+
+function renderSend(){
+  const paired = pairedDevices();
+  const t = paired.find(d => d.id === target);
+  if(!t){
+    setHTML($('sendArea'), `<div class="empty">Pair with your other computer first (left panel).<br>Both computers need Shuttle open.</div>`);
+    return;
+  }
+  setHTML($('sendArea'), `
+    <div class="target">Sending to <b>${esc(t.name)}</b> ${t.online?'':'<span class="pill bad">offline</span>'}</div>
+    <div class="drop" id="drop">
+      <div class="row">
+        <button class="primary big" onclick="pick('files')">Choose files…</button>
+        <button class="big" onclick="pick('folders')">Choose folder…</button>
+      </div>
+      <div class="hint">Large files are streamed, encrypted, verified with SHA-256, and resume automatically if the connection drops.${S.me.os==='windows'?'<br>Tip: right-click any file in Explorer → <b>Send to → Shuttle</b>.':''}</div>
+    </div>`);
+  const drop = $('drop');
+  if(drop && !drop._wired){
+    drop._wired = true;
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+    drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over');
+      toast('Browsers hide where dropped files live, so Shuttle can\'t stream them. Use “Choose files…” instead.', true); });
+  }
+}
+
+function statusPill(x){
+  if(x.status==='done') return '<span class="pill ok">done</span>';
+  if(x.status==='failed') return '<span class="pill bad">failed</span>';
+  if(x.status==='cancelled') return '<span class="pill">cancelled</span>';
+  return `<span class="pill run">${esc(x.status)}</span>`;
+}
+
+function renderTransfers(){
+  const el = $('transfers');
+  if(!S.transfers.length){ setHTML(el, '<div class="empty">No transfers yet.</div>'); return; }
+  if(el._h){ el.innerHTML=''; el._h=null; }
+  const keep = new Set();
+  S.transfers.forEach((x, idx) => {
+    const key = 'x-'+x.direction+'-'+x.id;
+    keep.add(key);
+    let row = document.getElementById(key);
+    if(!row){
+      row = document.createElement('div'); row.id = key;
+      row.innerHTML = `<div class="top"><span class="dir"></span><span class="name"></span><span class="pillw"></span><div class="btns"></div></div>
+        <div class="bar"><i></i></div><div class="stats"></div><div class="err"></div>`;
+    }
+    if(el.children[idx] !== row) el.insertBefore(row, el.children[idx] || null);
+    row.className = 'xfer '+(x.status==='done'?'done':x.status==='failed'?'failed':'');
+    const pct = x.total ? Math.min(100, x.done*100/x.total) : (x.status==='done'?100:0);
+    row.querySelector('.dir').textContent = x.direction==='out' ? '↑ to '+x.peer : '↓ from '+x.peer;
+    row.querySelector('.name').textContent = x.name;
+    row.querySelector('.name').title = x.current || x.name;
+    setHTML(row.querySelector('.pillw'), statusPill(x));
+    row.querySelector('.bar>i').style.width = pct.toFixed(2)+'%';
+    let stats = [`${pct.toFixed(1)}%`, `${fmtBytes(x.done)} of ${fmtBytes(x.total)}`];
+    if(x.files>1) stats.push(`${x.files} files`);
+    if(x.active && x.speed>0){ stats.push(fmtBytes(x.speed)+'/s'); stats.push(fmtDur((x.total-x.done)/x.speed)+' left'); }
+    if(x.active && x.current && x.files>1) stats.push('now: '+x.current);
+    setHTML(row.querySelector('.stats'), stats.map(s=>`<span>${esc(s)}</span>`).join(''));
+    setHTML(row.querySelector('.err'), x.error ? esc(x.status==='reconnecting' ? 'Connection problem: '+x.error+' — retrying…' : x.error) : '');
+    let btns = '';
+    if(x.direction==='out' && x.active) btns = `<button class="link danger" onclick="api('cancel',{id:'${x.id}'})">Cancel</button>`;
+    if(x.direction==='out' && !x.active && x.status!=='done') btns = `<button class="link" data-retry="${x.id}">Resume</button>`;
+    setHTML(row.querySelector('.btns'), btns);
+    const rb = row.querySelector('[data-retry]');
+    if(rb) rb.onclick = () => api('send', {peerId:x.peerId, paths:x.paths}).then(()=>toast('Resuming…')).catch(()=>{});
+  });
+  [...el.children].forEach(c => { if(!keep.has(c.id)) c.remove(); });
+}
+
+function renderHistory(){
+  if(!S.history.length){ setHTML($('history'), '<div class="empty">Finished transfers appear here.</div>'); return; }
+  setHTML($('history'), '<table>'+S.history.slice(0,50).map(h => {
+    const speed = h.seconds>0 ? fmtBytes(h.bytes/h.seconds)+'/s' : '';
+    return `<tr>
+      <td>${h.direction==='sent'?'↑':'↓'}</td>
+      <td class="n" title="${esc(h.path)}">${esc(h.name)}</td>
+      <td class="m hide-sm">${h.direction==='sent'?'to':'from'} ${esc(h.peer)}</td>
+      <td class="m">${fmtBytes(h.bytes)}</td>
+      <td class="m hide-sm">${speed}</td>
+      <td class="m">${fmtTime(h.time)}</td>
+      <td><button class="link" onclick="api('reveal',{id:'${esc(h.id)}'})">Show</button></td>
+    </tr>`;
+  }).join('')+'</table>');
+}
+
+function renderPairModal(){
+  const r = S.pairRequests[0];
+  const m = $('pairModal');
+  if(!r){ m.classList.remove('show'); setHTML($('pairModalBody'), ''); return; }
+  m.classList.add('show');
+  setHTML($('pairModalBody'), `
+    <h3>${osIcon(r.os)} Pair with “${esc(r.name)}”?</h3>
+    <p>Make sure <b>${esc(r.name)}</b> shows the same code. Paired devices can send files to this computer.</p>
+    <div class="code" style="text-align:center;font-size:34px">${esc(r.code)}</div>
+    <div class="row"><button onclick="respond('${r.reqId}',false)">Decline</button><button class="primary" onclick="respond('${r.reqId}',true)">Codes match — Pair</button></div>`);
+}
+
+// ---------- actions ----------
+function selectTarget(id){ target=id; localStorage.setItem('shuttle.target', id); render(); }
+function pairDevice(id){ api('pair',{deviceId:id}).catch(()=>{}); }
+function connectIP(){ const v=$('ipInput').value.trim(); if(!v) return; api('pair',{addr:v}).then(()=>{$('ipInput').value='';}).catch(()=>{}); }
+function respond(reqId, accept){ api('pair/respond',{reqId,accept}).catch(()=>{}); }
+function unpair(id, name){ if(confirm(`Unpair “${name}”? It will no longer be able to send you files.`)) api('unpair',{peerId:id}).catch(()=>{}); }
+
+async function pick(kind){
+  try{
+    const r = await api('pick', {kind});
+    if(!r.paths.length) return;
+    const s = await api('send', {peerId:target, paths:r.paths});
+    toast(`Sending ${s.files} file${s.files>1?'s':''} (${fmtBytes(s.total)}) to ${s.peer}`);
+  }catch(e){}
+}
+
+function openSettings(){
+  pickedDir = null;
+  $('setName').value = S.me.name;
+  $('setDir').textContent = S.me.downloadDir;
+  $('setAuto').checked = S.me.autostart;
+  $('setInfo').textContent = `Shuttle ${S.me.version} · transfer port ${S.me.peerPort} · device ID ${S.me.id}`;
+  $('settingsModal').classList.add('show');
+}
+function closeSettings(){ $('settingsModal').classList.remove('show'); }
+async function changeDir(){ try{ const r=await api('pick',{kind:'dir'}); if(r.paths.length){ pickedDir=r.paths[0]; $('setDir').textContent=pickedDir; } }catch(e){} }
+async function saveSettings(){
+  const body = {};
+  const name = $('setName').value.trim();
+  if(name !== S.me.name) body.deviceName = name;
+  if(pickedDir) body.downloadDir = pickedDir;
+  if($('setAuto').checked !== S.me.autostart) body.autostart = $('setAuto').checked;
+  try{ await api('settings', body); closeSettings(); toast('Saved'); }catch(e){}
+}
+async function quitApp(){
+  if(!confirm('Stop Shuttle on this computer? Transfers in progress will pause and can be resumed later.')) return;
+  await api('quit',{}).catch(()=>{});
+  document.body.innerHTML = '<div class="empty" style="padding:80px">Shuttle has stopped. Open the Shuttle app again to restart it.</div>';
+}
+
+connect();
+</script>
+</body>
+</html>
